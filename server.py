@@ -1,11 +1,42 @@
 import asyncio
 from websockets.asyncio.server import serve
+from collections import deque
+from datetime import datetime
+import json
 
 connected_clients = {}
+message_history = deque(maxlen=20)
+timestamp = datetime.now().strftime("%H:%M")
+HISTORY_FILE = "history.json"
+
+def load_history():
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            for message in data:
+                message_history.append(message)
+    except FileNotFoundError:
+        pass
+
+def save_history():
+    with open(HISTORY_FILE, "w", encoding="utf-8") as file:
+        json.dump(list(message_history), file)
+
 
 async def broadcast(message):
     for client in list(connected_clients):
         await client.send(message)
+
+async def send_message_history(websocket, show_empty=True):
+    if not message_history:
+        if show_empty:
+            await websocket.send("No message history yet.")
+        return
+    await websocket.send("-- Recent Messages --")
+
+    for old_message in message_history:
+        await websocket.send(old_message)
+    await websocket.send("-- End of Recent Messages --")
 
 async def handle_client(websocket):
     username = (await websocket.recv()).strip()
@@ -25,6 +56,8 @@ async def handle_client(websocket):
     print(f"{username} connected.")
     print(f"{len(connected_clients)} clients connected.")
 
+    send_message_history(websocket)
+
     await broadcast(f"*** {username} joined the chat***")
     try:
         async for message in websocket:
@@ -33,7 +66,7 @@ async def handle_client(websocket):
                 await websocket.send(f"Connected users: {users}")
                 continue
             if message == "/help":
-                await websocket.send("Available commands: \n/help - Show available commands \n/users - List all connected users. \n/quit - Disconnect from the server.")
+                await websocket.send("Available commands: \n/help - Show available commands \n/users - List all connected users \n/quit - Disconnect from the server \n/rename_to - Lets clients change their username \n/history - Show recent public messages")
                 continue
             if message.startswith("/msg"):
                 parts = message.split(" ", 2)
@@ -84,7 +117,14 @@ async def handle_client(websocket):
                 username = new_username
                 await broadcast(f"*** {old_username} changed their username to {new_username} ***")
                 continue
-            formatted_message = f"{username}: {message}"
+
+            if message == "/history":
+                send_message_history(websocket)
+                continue
+
+            formatted_message = f"[{timestamp}] {username}: {message}"
+            message_history.append(formatted_message)
+            save_history()
             print(formatted_message)
             await broadcast(formatted_message)
 
