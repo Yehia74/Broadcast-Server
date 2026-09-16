@@ -8,8 +8,11 @@ def main():
         print("Please enter a valid command.")
     else:
         command = sys.argv[1].lower()
-        if command == 'start':
-            asyncio.run(server.main())
+        if command == "start":
+            try:
+                asyncio.run(server.main())
+            except KeyboardInterrupt:
+                print("\nServer stopped.")
         elif command == 'connect':
             asyncio.run(client.main())
         elif command == 'help':

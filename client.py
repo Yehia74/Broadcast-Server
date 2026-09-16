@@ -1,5 +1,6 @@
 import asyncio
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 
 async def send_messages(websocket):
      while True:
@@ -17,10 +18,29 @@ async def receive_messages(websocket):
 
 async def main():
     username = input("Username: ")
-    async with connect("ws://localhost:8765") as websocket:
-        await websocket.send(username)
-        await asyncio.gather(send_messages(websocket), 
-                             receive_messages(websocket))
+
+    try:
+        async with connect("ws://localhost:8765") as websocket:
+            await websocket.send(username)
+            send_task = asyncio.create_task(send_messages(websocket))
+            receive_task = asyncio.create_task(receive_messages(websocket))
+
+            done, pending = await asyncio.wait(
+            [send_task, receive_task], 
+            return_when=asyncio.FIRST_COMPLETED)
+
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+
+            try:
+                for task in pending:
+                    task.cancel()
+            except ConnectionClosed:
+                print("\nConnection to server lost.")
+    except OSError:
+        print("Could not connect to server.\n" \
+        "Make sure the server is running.")
 
 if __name__ == "__main__":
     asyncio.run(main())

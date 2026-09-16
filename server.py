@@ -7,7 +7,6 @@ from websockets.exceptions import ConnectionClosed
 
 connected_clients = {}
 message_history = deque(maxlen=20)
-timestamp = datetime.now().strftime("%H:%M")
 HISTORY_FILE = "history.json"
 
 def load_history():
@@ -202,10 +201,25 @@ async def handle_command(websocket, username, message):
     if message.startswith("/"):
         await websocket.send("Unknown command. Type /help to see available commands.")
         return True, username
+    return False, username
+
+async def shutdown():
+    for client in list(connected_clients):
+        await client.close()
 
 async def main():
-    async with serve(handle_client, "localhost", 8765):
-        await asyncio.Future()
+    load_history()
+
+    try:
+        async with serve(handle_client, "localhost", 8765):
+            print("Server started on localhost:8765")
+            await asyncio.Future()
+
+    finally:
+        await shutdown()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
