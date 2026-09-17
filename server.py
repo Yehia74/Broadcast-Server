@@ -15,7 +15,7 @@ def load_history():
             data = json.load(file)
             for message in data:
                 message_history.append(message)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         pass
 
 def save_history():
@@ -57,17 +57,15 @@ async def handle_client(websocket):
         return
 
     connected_clients[websocket] = username
-
-    print(f"{username} connected.")
-    print(f"{len(connected_clients)} clients connected.")
-
-    await send_message_history(websocket, show_empty=False)
-
-    await broadcast(f"*** {username} joined the chat ***")
-
     try:
-        async for message in websocket:
+        print(f"{username} connected.")
+        print(f"{len(connected_clients)} clients connected.")
+        
+        await send_message_history(websocket, show_empty=False)
+        await broadcast(f"*** {username} joined the chat ***")
 
+
+        async for message in websocket:
             handled, username = await handle_command(websocket, username, message)
 
             if handled:
@@ -133,7 +131,7 @@ async def handle_command(websocket, username, message):
 
         target_found = False
 
-        for client, name in connected_clients.items():
+        for client, name in list(connected_clients.items()):
             if name.lower() == target_username.lower():
                 await client.send(
                     f"[Private] {username}: {private_message}"

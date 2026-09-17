@@ -25,19 +25,21 @@ async def main():
             send_task = asyncio.create_task(send_messages(websocket))
             receive_task = asyncio.create_task(receive_messages(websocket))
 
-            done, pending = await asyncio.wait(
-            [send_task, receive_task], 
-            return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(
+            [send_task, receive_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
 
-            for task in pending:
-                task.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
+        for task in pending:
+            task.cancel()
 
-            try:
-                for task in pending:
-                    task.cancel()
-            except ConnectionClosed:
-                print("\nConnection to server lost.")
+        await asyncio.gather(*pending, return_exceptions=True)
+
+        try:
+            for task in done:
+                await task
+        except ConnectionClosed:
+            print("\nConnection to server lost.")
     except OSError:
         print("Could not connect to server.\n" \
         "Make sure the server is running.")
